@@ -188,31 +188,15 @@ class AncillaManager:
 @cudaq.kernel
 def enhanced_trotterized_circuit(
         N: int,
-        G2: list[list[int]],
-        G4: list[list[int]],
+        G2_flat: list[int],      # Flattened: [i0, k0, i1, k1, ...]
+        G2_count: int,            # Number of G2 interactions
+        G4_flat: list[int],      # Flattened: [i0, j0, k0, l0, i1, j1, k1, l1, ...]
+        G4_count: int,            # Number of G4 interactions
         steps: int,
-        dt: float,
-        T: float,
-        thetas: list[float],
-        use_dynamic: bool = False
+        thetas: list[float]
 ):
     """
-    Enhanced counteradiabatic circuit with strategic ancilla management.
-
-    Improvements over baseline:
-    1. Modular structure for better ancilla tracking
-    2. Support for dynamic circuits (measurement & reset)
-    3. Optimized gate ordering for locality
-
-    Args:
-        N: Number of qubits
-        G2: Two-body interaction indices
-        G4: Four-body interaction indices
-        steps: Number of Trotter steps
-        dt: Time step size
-        T: Total evolution time
-        thetas: Rotation angles
-        use_dynamic: Enable mid-circuit measurement & reset (if supported)
+    Enhanced counteradiabatic circuit with flattened interaction lists.
     """
     # Initialize all qubits in superposition
     reg = cudaq.qvector(N)
@@ -223,9 +207,9 @@ def enhanced_trotterized_circuit(
         theta = thetas[step]
 
         # ===== Phase 1: Two-body interactions =====
-        # These have simpler structure, apply first
-        for interaction in G2:
-            i, k = interaction[0], interaction[1]
+        for g2_idx in range(G2_count):
+            i = G2_flat[2 * g2_idx]
+            k = G2_flat[2 * g2_idx + 1]
             angle = 4.0 * theta
 
             # R_{Y_i Z_{i+k}} decomposition
@@ -234,13 +218,14 @@ def enhanced_trotterized_circuit(
             cx(reg[i], reg[k])
 
         # ===== Phase 2: Four-body interactions =====
-        # More complex, potential for ancilla optimization
-        for interaction in G4:
-            i, i1, ik, iki = interaction
+        for g4_idx in range(G4_count):
+            i = G4_flat[4 * g4_idx]
+            i1 = G4_flat[4 * g4_idx + 1]
+            ik = G4_flat[4 * g4_idx + 2]
+            iki = G4_flat[4 * g4_idx + 3]
             angle = 8.0 * theta
 
             # R_{Y_i Z_{i+j} Z_{i+k} Z_{i+k+j}} decomposition
-            # Using CNOT ladder for multi-control
             cx(reg[i1], reg[iki])
             cx(reg[ik], reg[iki])
             cx(reg[i], reg[iki])
@@ -250,10 +235,19 @@ def enhanced_trotterized_circuit(
             cx(reg[ik], reg[iki])
             cx(reg[i1], reg[iki])
 
-        # ===== Phase 3: Optional dynamic reset =====
-        # If using dynamic circuits, measure and reset ancilla mid-circuit
-        # (This would require identifying which qubits are ancilla)
-        # For now, this is a placeholder for future enhancement
+
+def flatten_interactions(G2: List[List[int]], G4: List[List[int]]) -> Tuple[List[int], int, List[int], int]:
+    """Flatten nested interaction lists for CUDA-Q kernel compatibility."""
+    G2_flat = []
+    for interaction in G2:
+        G2_flat.extend(interaction)  # [i, k]
+
+    G4_flat = []
+    for interaction in G4:
+        G4_flat.extend(interaction)  # [i, i+j, i+k, i+k+j]
+
+    return G2_flat, len(G2), G4_flat, len(G4)
+
 
 def track_qubit_usage(N: int, G2: List[List[int]], G4: List[List[int]],
     n_steps: int) -> Dict:
@@ -361,9 +355,7 @@ def sample_quantum_population_enhanced(
         T: float,
         thetas: List[float],
         pop_size: int = 50,
-        n_shots: int = 5000,
-        strategy: str = 'hybrid',
-        use_deduplication: bool=True
+        n_shots: int = 5000
 ) -> Tuple[List[List[int]], Dict]:
     """
     Enhanced quantum population sampling with multiple strategies.
@@ -392,13 +384,14 @@ def sample_quantum_population_enhanced(
     print(f"Problem size: N={N}")
     print(f"Population size: {pop_size}")
     print(f"Quantum shots: {n_shots}")
-    print(f"Strategy: {strategy}")
-    print(f"Deduplication: {use_deduplication}")
+
+    # Flatten interactions for CUDA-Q compatibility
+    G2_flat, G2_count, G4_flat, G4_count = flatten_interactions(G2, G4)
 
     # Sample from quantum circuit
     result = cudaq.sample(
         enhanced_trotterized_circuit,
-        N, G2, G4, n_steps, dt, T, thetas, False,  # use_dynamic=False for now
+        N, G2_flat, G2_count, G4_flat, G4_count, n_steps, thetas,
         shots_count=n_shots
     )
 
