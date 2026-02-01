@@ -97,7 +97,7 @@ class AncillaManager:
             Nactive = 1
         Guncomp = gate_cost
 
-        C1 = Nactive * Guncomp * (2 ** level)
+        C1 = Guncomp * (2 ** level)
 
         Gparent = max(2 * Guncomp, 1)
         area_expansion = np.sqrt((Nactive + n_ancilla) / max(Nactive, 1))
