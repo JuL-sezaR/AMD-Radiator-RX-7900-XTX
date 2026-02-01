@@ -255,6 +255,95 @@ def enhanced_trotterized_circuit(
         # (This would require identifying which qubits are ancilla)
         # For now, this is a placeholder for future enhancement
 
+def track_qubit_usage(N: int, G2: List[List[int]], G4: List[List[int]],
+    n_steps: int) -> Dict:
+    """
+    Track which qubits are actively used at each step.
+    This enables SQUARE-inspired optimization for circuit scheduling.
+    """
+    qubit_usage = {i: [] for i in range(N)}
+    current_time = 0
+
+    for step in range(n_steps):
+        # Track G2 interactions
+        for interaction in G2:
+            i, k = interaction
+            qubit_usage[i].append(current_time)
+            qubit_usage[k].append(current_time)
+            current_time += 1  # Each rotation is one time unit
+
+        # Track G4 interactions
+        for interaction in G4:
+            i, i1, ik, iki = interaction
+            # All four qubits involved
+            for q in [i, i1, ik, iki]:
+                qubit_usage[q].append(current_time)
+            current_time += 3  # CNOT ladder depth
+
+    # Calculate metrics
+    qubit_active_time = {q: len(times) for q, times in qubit_usage.items()}
+    total_active_time = sum(qubit_active_time.values())
+
+    return {
+        'qubit_usage': qubit_usage,
+        'qubit_active_time': qubit_active_time,
+        'total_active_time': total_active_time,
+        'average_active_time': total_active_time / N if N > 0 else 0,
+        'max_active_qubit': max(qubit_active_time.values()) if qubit_active_time else 0
+    }
+
+
+def deduplicate_population(population: List[List[int]],
+                           strategy: str = 'hash') -> Tuple[List[List[int]], Dict]:
+    """
+    Remove duplicate sequences using SQUARE-inspired memory efficiency.
+
+    Args:
+        population: List of sequences
+        strategy: 'hash' or 'symmetric' (also remove symmetric variants)
+
+    Returns:
+        Deduplicated population and statistics
+    """
+    if strategy == 'hash':
+        # Simple deduplication
+        seen = set()
+        unique_pop = []
+
+        for seq in population:
+            seq_tuple = tuple(seq)
+            if seq_tuple not in seen:
+                unique_pop.append(seq)
+                seen.add(seq_tuple)
+
+    elif strategy == 'symmetric':
+        # Advanced: remove symmetric variants (uses LABS symmetry knowledge)
+        seen = set()
+        unique_pop = []
+
+        for seq in population:
+            # Generate all 4 symmetric variants
+            variants = utils.generate_symmetric_variants(seq)
+            variant_tuples = [tuple(v) for v in variants]
+
+            # Check if any variant was seen
+            if not any(vt in seen for vt in variant_tuples):
+                unique_pop.append(seq)
+                # Mark all variants as seen
+                seen.update(variant_tuples)
+
+    else:
+        unique_pop = population
+
+    stats = {
+        'original_size': len(population),
+        'deduplicated_size': len(unique_pop),
+        'duplicates_removed': len(population) - len(unique_pop),
+        'compression_ratio': len(unique_pop) / len(population) if population else 0
+    }
+
+    return unique_pop, stats
+
 
 # ============================================================================
 # STEP 4: Improved Quantum Population Sampling
@@ -519,95 +608,7 @@ def _hybrid_sampling(counts: Dict, N: int, pop_size: int) -> List[List[int]]:
     return population[:pop_size]
 
 
-def track_qubit_usage(N: int, G2: List[List[int]], G4: List[List[int]],
-                      n_steps: int) -> Dict:
-    """
-    Track which qubits are actively used at each step.
-    This enables SQUARE-inspired optimization for circuit scheduling.
-    """
-    qubit_usage = {i: [] for i in range(N)}
-    current_time = 0
-
-    for step in range(n_steps):
-        # Track G2 interactions
-        for interaction in G2:
-            i, k = interaction
-            qubit_usage[i].append(current_time)
-            qubit_usage[k].append(current_time)
-            current_time += 1  # Each rotation is one time unit
-
-        # Track G4 interactions
-        for interaction in G4:
-            i, i1, ik, iki = interaction
-            # All four qubits involved
-            for q in [i, i1, ik, iki]:
-                qubit_usage[q].append(current_time)
-            current_time += 3  # CNOT ladder depth
-
-    # Calculate metrics
-    qubit_active_time = {q: len(times) for q, times in qubit_usage.items()}
-    total_active_time = sum(qubit_active_time.values())
-
-    return {
-        'qubit_usage': qubit_usage,
-        'qubit_active_time': qubit_active_time,
-        'total_active_time': total_active_time,
-        'average_active_time': total_active_time / N if N > 0 else 0,
-        'max_active_qubit': max(qubit_active_time.values()) if qubit_active_time else 0
-    }
-
-
-def deduplicate_population(population: List[List[int]],
-                           strategy: str = 'hash') -> Tuple[List[List[int]], Dict]:
-    """
-    Remove duplicate sequences using SQUARE-inspired memory efficiency.
-
-    Args:
-        population: List of sequences
-        strategy: 'hash' or 'symmetric' (also remove symmetric variants)
-
-    Returns:
-        Deduplicated population and statistics
-    """
-    if strategy == 'hash':
-        # Simple deduplication
-        seen = set()
-        unique_pop = []
-
-        for seq in population:
-            seq_tuple = tuple(seq)
-            if seq_tuple not in seen:
-                unique_pop.append(seq)
-                seen.add(seq_tuple)
-
-    elif strategy == 'symmetric':
-        # Advanced: remove symmetric variants (uses LABS symmetry knowledge)
-        seen = set()
-        unique_pop = []
-
-        for seq in population:
-            # Generate all 4 symmetric variants
-            variants = utils.generate_symmetric_variants(seq)
-            variant_tuples = [tuple(v) for v in variants]
-
-            # Check if any variant was seen
-            if not any(vt in seen for vt in variant_tuples):
-                unique_pop.append(seq)
-                # Mark all variants as seen
-                seen.update(variant_tuples)
-
-    else:
-        unique_pop = population
-
-    stats = {
-        'original_size': len(population),
-        'deduplicated_size': len(unique_pop),
-        'duplicates_removed': len(population) - len(unique_pop),
-        'compression_ratio': len(unique_pop) / len(population) if population else 0
-    }
-
-    return unique_pop, stats
-
+def
 
 # ============================================================================
 # HELPER FUNCTIONS
