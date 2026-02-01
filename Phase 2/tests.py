@@ -22,6 +22,13 @@ from utils import (
     generate_symmetric_variants,
     hamming_distance
 )
+# At the top of your file
+try:
+    import cupy
+    HAS_CUPY = True
+except ImportError:
+    HAS_CUPY = False
+
 
 
 # ============================================================================
