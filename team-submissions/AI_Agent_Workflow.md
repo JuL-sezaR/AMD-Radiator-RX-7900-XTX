@@ -12,7 +12,7 @@ We employed a **multi-agent strategy** with clear separation of concerns:
 - Generated the initial SQUARE cost model implementation
 - Created the ancilla management class architecture
 
-**Agent 2: Cursor AI - Implementation & Debugging**
+**Agent 2: Coda - Implementation & Debugging**
 - Primary coding agent for writing Python implementations
 - Handled CUDA-Q kernel syntax and constraints
 - Implemented the flattening of nested lists for CUDA-Q compatibility
@@ -26,7 +26,7 @@ We employed a **multi-agent strategy** with clear separation of concerns:
 
 ### Workflow Pipeline:
 ```
-Research Papers → Claude (design) → Cursor (implement) → ChatGPT (test/doc) → Manual Review → Iteration
+Research Papers → Claude (design) → Coda (implement) → ChatGPT (test/doc) → Manual Review → Iteration
 ```
 
 **Key Integration Point:** We maintained a shared `CONTEXT.md` file that all agents could reference, containing:
